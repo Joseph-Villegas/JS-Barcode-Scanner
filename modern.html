@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <!-- Required meta tags -->
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+      crossorigin="anonymous"
+    />
+
+    <title>JS Barcode Scanner</title>
+
+    <style>
+      #interactive.viewport {
+        position: relative;
+        width: 100%;
+        height: auto;
+        overflow: hidden;
+        text-align: center;
+      }
+      #interactive.viewport > canvas,
+      #interactive.viewport > video {
+        max-width: 100%;
+        width: 100%;
+      }
+      canvas.drawing,
+      canvas.drawingBuffer {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="row align-items-center justify-content-center">
+        <h1>JS Barcode Scanner</h1>
+      </div>
+      <div class="row d-flex align-items-center justify-content-center">
+        <div class="col-lg-6">
+          <div class="input-group">
+            <input
+              id="scanner_input"
+              class="form-control"
+              placeholder="Scan a barcode with the button..."
+              type="text"
+            />
+            <span class="input-group-btn">
+              <button
+                class="btn btn-info"
+                type="button"
+                data-toggle="modal"
+                data-target="#livestream_scanner"
+              >
+                <i class="fa fa-barcode"></i>
+              </button>
+            </span>
+          </div>
+          <!-- /input-group -->
+        </div>
+        <!-- /.col-lg-6 -->
+      </div>
+    </div>
+    <!-- /.row -->
+
+    <div class="modal" id="livestream_scanner">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Barcode Scanner</h5>
+            <button
+              type="button"
+              class="close"
+              data-dismiss="modal"
+              aria-label="Close"
+            >
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body" style="position: static">
+            <div id="interactive" class="viewport">
+              <video autoplay="true" preload="auto"></video>
+            </div>
+            <div class="error"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-primary" data-dismiss="modal">
+              Close
+            </button>
+          </div>
+        </div>
+        <!-- /.modal-content -->
+      </div>
+      <!-- /.modal-dialog -->
+    </div>
+    <!-- /.modal -->
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script
+      src="https://code.jquery.com/jquery-3.2.1.slim.min.js"
+      integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+      integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+      integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdn.rawgit.com/serratus/quaggaJS/0420d5e0/dist/quagga.min.js"></script>
+    <script type="text/javascript">
+      const a = new AudioContext();
+
+      function beep(vol, freq, duration) {
+        let v = a.createOscillator();
+        let u = a.createGain();
+        v.connect(u);
+        v.frequency.value = freq;
+        v.type = "square";
+        u.connect(a.destination);
+        u.gain.value = vol * 0.01;
+        v.start(a.currentTime);
+        v.stop(a.currentTime + duration * 0.001);
+      }
+      //min: 1.5, max: 1.7 og - 1-100
+      $(function () {
+        // Create the QuaggaJS config object for the live stream
+        var liveStreamConfig = {
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            constraints: {
+              width: { min: 640 },
+              height: { min: 480 },
+              aspectRatio: { min: 1.5, max: 1.7 },
+              facingMode: "environment", // or "user" for the front camera
+            },
+          },
+          locator: {
+            patchSize: "medium",
+            halfSample: true,
+          },
+          numOfWorkers: navigator.hardwareConcurrency
+            ? navigator.hardwareConcurrency
+            : 4,
+          decoder: {
+            readers: ["code_128_reader", "upc_reader", "upc_e_reader"],
+          },
+          locate: true,
+        };
+        // The fallback to the file API requires a different inputStream option.
+        // The rest is the same
+        var fileConfig = $.extend({}, liveStreamConfig, {
+          inputStream: {
+            size: 800,
+          },
+        });
+        // Start the live stream scanner when the modal opens
+        $("#livestream_scanner").on("shown.bs.modal", function (e) {
+          Quagga.init(liveStreamConfig, function (err) {
+            if (err) {
+              $("#livestream_scanner .modal-body .error").html(
+                '<div class="alert alert-danger"><strong><i class="fa fa-exclamation-triangle"></i> ' +
+                  err.name +
+                  "</strong>: " +
+                  err.message +
+                  "</div>"
+              );
+              Quagga.stop();
+              return;
+            }
+            Quagga.start();
+          });
+          console.log("READY");
+        });
+
+        // Make sure, QuaggaJS draws frames an lines around possible
+        // barcodes on the live stream
+        Quagga.onProcessed(function (result) {
+          var drawingCtx = Quagga.canvas.ctx.overlay,
+            drawingCanvas = Quagga.canvas.dom.overlay;
+
+          if (result) {
+            if (result.boxes) {
+              drawingCtx.clearRect(
+                0,
+                0,
+                parseInt(drawingCanvas.getAttribute("width")),
+                parseInt(drawingCanvas.getAttribute("height"))
+              );
+              result.boxes
+                .filter(function (box) {
+                  return box !== result.box;
+                })
+                .forEach(function (box) {
+                  Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, {
+                    color: "green",
+                    lineWidth: 2,
+                  });
+                });
+            }
+
+            if (result.box) {
+              Quagga.ImageDebug.drawPath(
+                result.box,
+                { x: 0, y: 1 },
+                drawingCtx,
+                { color: "#00F", lineWidth: 2 }
+              );
+            }
+
+            if (result.codeResult && result.codeResult.code) {
+              Quagga.ImageDebug.drawPath(
+                result.line,
+                { x: "x", y: "y" },
+                drawingCtx,
+                { color: "red", lineWidth: 3 }
+              );
+            }
+          }
+        });
+
+        // Once a barcode had been read successfully, stop quagga and
+        // close the modal after a second to let the user notice where
+        // the barcode had actually been found.
+        Quagga.onDetected(function (result) {
+          beep(100, 520, 200);
+          console.log(result);
+          if (result.codeResult.code) {
+            $("#scanner_input").val(result.codeResult.code);
+            Quagga.stop();
+            setTimeout(function () {
+              $("#livestream_scanner").modal("hide");
+            }, 1000);
+          }
+        });
+
+        // Stop quagga in any case, when the modal is closed
+        $("#livestream_scanner").on("hide.bs.modal", function () {
+          if (Quagga) {
+            Quagga.stop();
+          }
+        });
+
+        // Call Quagga.decodeSingle() for every file selected in the
+        // file input
+        $("#livestream_scanner input:file").on("change", function (e) {
+          if (e.target.files && e.target.files.length) {
+            Quagga.decodeSingle(
+              $.extend({}, fileConfig, {
+                src: URL.createObjectURL(e.target.files[0]),
+              }),
+              function (result) {
+                alert(result.codeResult.code);
+              }
+            );
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
